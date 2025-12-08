@@ -1,3 +1,12 @@
+# ConfigMap for for RabbitMQ
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rabbitmq-enabled-plugins
+data:
+  rabbitmq_enabled_plugins: |
+    [rabbitmq_management,rabbitmq_prometheus,rabbitmq_amqp1_0].
+---
 # StatefulSet for MongoDB
 apiVersion: apps/v1
 kind: StatefulSet
@@ -371,6 +380,7 @@ spec:
       containers:
         - name: store-front
           image: ramymohamed/store-front-l8:latest # Front-end store application
+          imagePullPolicy: Always # Force the image to be pulled every time
           ports:
             - containerPort: 8080 # Front-end app port
               name: store-front
@@ -490,91 +500,3 @@ spec:
   selector:
     app: store-admin
   type: LoadBalancer # Expose service externally via load balancer
----
-# Deployment for AI Service
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: ai-service
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: ai-service
-  template:
-    metadata:
-      labels:
-        app: ai-service
-    spec:
-      nodeSelector:
-        "kubernetes.io/os": linux
-      containers:
-        - name: ai-service
-          image: ramymohamed/ai-service-l8:latest
-          ports:
-            - containerPort: 5001
-          env:
-            - name: USE_AZURE_OPENAI # set to True for Azure OpenAI, False for Public OpenAI
-              value: "True"
-            - name: AZURE_OPENAI_API_VERSION
-              value: "2024-07-01-preview"
-            - name: AZURE_OPENAI_GPT_DEPLOYMENT_NAME # required if using Azure OpenAI
-              value: ""
-            - name: AZURE_OPENAI_GPT_ENDPOINT # required if using Azure OpenAI
-              value: ""
-            - name: AZURE_OPENAI_DALLE_ENDPOINT
-              value: ""
-            - name: AZURE_OPENAI_DALLE_DEPLOYMENT_NAME
-              value: ""
-            - name: OPENAI_GPT_API_KEY # always required
-              valueFrom:
-                secretKeyRef:
-                  name: openai-gpt-api-secret
-                  key: OPENAI_GPT_API_KEY
-            - name: OPENAI_DALLE_API_KEY # always required
-              valueFrom:
-                secretKeyRef:
-                  name: openai-dalle-api-secret
-                  key: OPENAI_DALLE_API_KEY
-          resources:
-            requests:
-              cpu: 20m
-              memory: 50Mi
-            limits:
-              cpu: 50m
-              memory: 128Mi
-          startupProbe:
-            httpGet:
-              path: /health
-              port: 5001
-            initialDelaySeconds: 60
-            failureThreshold: 3
-            periodSeconds: 5
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: 5001
-            initialDelaySeconds: 3
-            failureThreshold: 10
-            periodSeconds: 10
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: 5001
-            initialDelaySeconds: 3
-            failureThreshold: 10
-            periodSeconds: 10
----
-# Service for AI Service
-apiVersion: v1
-kind: Service
-metadata:
-  name: ai-service
-spec:
-  type: ClusterIP
-  ports:
-    - name: http
-      port: 5001
-      targetPort: 5001
-  selector:
-    app: ai-service
